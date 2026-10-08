@@ -1,0 +1,41 @@
+{
+  "ship": {
+    "width": 10,
+    "length": 20,
+    "maxCapacity": 500
+  },
+  "vehicles": [
+    {
+      "id": "A",
+      "width": 3,
+      "length": 4,
+      "shippingFee": 60,
+      "weight": 100,
+      "ETA": 2
+    },
+    {
+      "id": "B",
+      "width": 2,
+      "length": 5,
+      "shippingFee": 75,
+      "weight": 120,
+      "ETA": 1
+    },
+    {
+      "id": "C",
+      "width": 4,
+      "length": 5,
+      "shippingFee": 90,
+      "weight": 180,
+      "ETA": 3
+    },
+    {
+      "id": "D",
+      "width": 2,
+      "length": 3,
+      "shippingFee": 45,
+      "weight": 80,
+      "ETA": 2
+    }
+  ]
+}
