@@ -55,12 +55,12 @@ def plot_sa_probability(history, save_path=None):
     return _finish(fig, ax, save_path)
 
 
-def plot_ga_fitness(history, save_path=None):
+def plot_ga_fitness(history, save_path=None, title="Genetic Algorithm - fitness populasi"):
     if not history:
         raise ValueError("History kosong")
     fig, ax = plt.subplots(figsize=(9, 4.5))
     x = [h["generation"] for h in history]
     ax.plot(x, [h["max_fitness"] for h in history], label="Fitness maksimum", color="#24748e")
     ax.plot(x, [h["average_fitness"] for h in history], label="Fitness rata-rata", color="#cd8239")
-    ax.set(xlabel="Generasi", ylabel="Fitness", title="Genetic Algorithm - fitness populasi")
+    ax.set(xlabel="Generasi", ylabel="Fitness", title=title)
     return _finish(fig, ax, save_path)

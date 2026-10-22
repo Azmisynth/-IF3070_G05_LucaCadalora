@@ -23,6 +23,7 @@ class Placement:
     x: int | None = None
     y: int | None = None
     orientation: Orientation = Orientation.HORIZONTAL
+    ship_id: str | None = None
 
     def __post_init__(self) -> None:
         if isinstance(self.orientation, str):

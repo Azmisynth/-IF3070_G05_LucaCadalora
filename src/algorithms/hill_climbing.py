@@ -6,7 +6,7 @@ from src.core.constraints import is_valid_state
 from src.core.initialization import generate_random_state
 from src.core.neighbor import generate_neighbors
 from src.core.objective import with_updated_metrics
-from src.models.state import State
+from src.models.fleet_state import SearchState, ship_configuration, state_key
 
 
 VALID_VARIANTS = {
@@ -18,28 +18,15 @@ VALID_VARIANTS = {
 }
 
 
-def _state_key(state: State) -> tuple[tuple[object, ...], ...]:
-    return tuple(
-        (
-            placement.vehicle.id,
-            placement.inside,
-            placement.x,
-            placement.y,
-            placement.orientation.value,
-        )
-        for placement in state.placements
-    )
-
-
 def _pick_neighbor(
-    current: State,
-    neighbors: list[State],
+    current: SearchState,
+    neighbors: list[SearchState],
     variant: str,
     generator: random.Random,
     sideways_used: int,
     max_sideways: int,
     seen: set[tuple[tuple[object, ...], ...]],
-) -> State | None:
+) -> SearchState | None:
     better = [
         neighbor
         for neighbor in neighbors
@@ -61,13 +48,13 @@ def _pick_neighbor(
         neighbor
         for neighbor in neighbors
         if neighbor.objective_value == current.objective_value
-        and _state_key(neighbor) not in seen
+        and state_key(neighbor) not in seen
     ]
     return generator.choice(sideways) if sideways else None
 
 
 def _single_hill_climb(
-    initial_state: State,
+    initial_state: SearchState,
     variant: str,
     objective_mode: str,
     max_iterations: int,
@@ -77,7 +64,7 @@ def _single_hill_climb(
     initial = with_updated_metrics(initial_state, objective_mode)
     current = initial
     history = [{"iteration": 0, "objective": current.objective_value}]
-    seen = {_state_key(current)}
+    seen = {state_key(current)}
     sideways_used = 0
     iterations = 0
 
@@ -101,7 +88,7 @@ def _single_hill_climb(
             sideways_used = 0
 
         current = selected
-        seen.add(_state_key(current))
+        seen.add(state_key(current))
         iterations += 1
         history.append({"iteration": iterations, "objective": current.objective_value})
 
@@ -119,7 +106,7 @@ def _single_hill_climb(
 
 
 def _random_restart(
-    initial_state: State,
+    initial_state: SearchState,
     objective_mode: str,
     max_iterations: int,
     max_restart: int,
@@ -138,7 +125,7 @@ def _random_restart(
 
     for _ in range(max_restart):
         restart_state = generate_random_state(
-            initial_state.ship,
+            ship_configuration(initial_state),
             initial_state.vehicles,
             objective_mode=objective_mode,
             rng=generator,
@@ -181,7 +168,7 @@ def _random_restart(
 
 
 def hill_climb(
-    state: State,
+    state: SearchState,
     variant: str = "steepest",
     max_iterations: int = 1000,
     max_sideways: int = 20,

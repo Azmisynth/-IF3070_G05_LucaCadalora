@@ -9,21 +9,13 @@ from src.algorithms.hill_climbing import hill_climb
 from src.algorithms.simulated_annealing import simulated_annealing
 from src.core.initialization import generate_random_state
 from src.experiments.config import load_experiment_config
-from src.models.ship import Ship
-from src.models.state import State
+from src.models.fleet_state import SearchState, ShipConfiguration
+from src.io.problem import load_problem as _load_problem
 from src.models.vehicle import Vehicle
 
 
-def _load_problem(path: str | Path) -> tuple[Ship, list[Vehicle]]:
-    with Path(path).open(encoding="utf-8") as stream:
-        data = json.load(stream)
-    ship = Ship.from_dict(data["ship"])
-    vehicles = [Vehicle.from_dict(item) for item in data["vehicles"]]
-    return ship, vehicles
-
-
 def _serialize_value(value: Any) -> Any:
-    if isinstance(value, State):
+    if isinstance(value, SearchState):
         return value.to_dict()
     if isinstance(value, dict):
         return {key: _serialize_value(item) for key, item in value.items()}
@@ -33,15 +25,15 @@ def _serialize_value(value: Any) -> Any:
 
 
 def _initial_state(
-    ship: Ship,
+    ship: ShipConfiguration,
     vehicles: list[Vehicle],
     seed: int,
-) -> State:
+) -> SearchState:
     return generate_random_state(ship, vehicles, rng=random.Random(seed))
 
 
 def _run_hill_climbing(
-    ship: Ship,
+    ship: ShipConfiguration,
     vehicles: list[Vehicle],
     config: dict[str, Any],
 ) -> list[dict[str, Any]]:
@@ -59,7 +51,7 @@ def _run_hill_climbing(
 
 
 def _run_simulated_annealing(
-    ship: Ship,
+    ship: ShipConfiguration,
     vehicles: list[Vehicle],
     config: dict[str, Any],
 ) -> list[dict[str, Any]]:
@@ -77,7 +69,7 @@ def _run_simulated_annealing(
 
 
 def _run_genetic_configuration(
-    ship: Ship,
+    ship: ShipConfiguration,
     vehicles: list[Vehicle],
     config: dict[str, Any],
     population_size: int,
@@ -114,7 +106,7 @@ def _run_genetic_configuration(
 
 
 def _run_genetic_algorithm(
-    ship: Ship,
+    ship: ShipConfiguration,
     vehicles: list[Vehicle],
     config: dict[str, Any],
 ) -> dict[str, list[dict[str, Any]]]:
@@ -162,7 +154,8 @@ def run_experiments(
     config = load_experiment_config(config_path)
     results = {
         "input": {
-            "ship": ship.to_dict(),
+            **({"ships": [{"id": ship_id, **item.to_dict()} for ship_id, item in ship.items()]}
+               if isinstance(ship, dict) else {"ship": ship.to_dict()}),
             "vehicles": [vehicle.to_dict() for vehicle in vehicles],
         },
         "configuration": config,

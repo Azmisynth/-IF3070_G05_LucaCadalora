@@ -1,9 +1,14 @@
 from itertools import combinations
 
-from src.models.state import Placement, State
+from src.models.state import Placement
+from src.models.fleet_state import FleetState, SearchState
 
 
-def is_inside_boundary(state: State) -> bool:
+def is_inside_boundary(state: SearchState) -> bool:
+    if isinstance(state, FleetState):
+        return state.has_valid_assignments() and all(
+            is_inside_boundary(state.ship_state(ship_id)) for ship_id in state.ships
+        )
     for placement in state.inside_placements:
         if placement.x is None or placement.y is None:
             return False
@@ -29,17 +34,26 @@ def placements_overlap(first: Placement, second: Placement) -> bool:
     )
 
 
-def has_overlap(state: State) -> bool:
+def has_overlap(state: SearchState) -> bool:
+    if isinstance(state, FleetState):
+        return any(has_overlap(state.ship_state(ship_id)) for ship_id in state.ships)
     return any(
         placements_overlap(first, second)
         for first, second in combinations(state.inside_placements, 2)
     )
 
 
-def within_capacity(state: State) -> bool:
+def within_capacity(state: SearchState) -> bool:
+    if isinstance(state, FleetState):
+        return state.has_valid_assignments() and all(
+            within_capacity(state.ship_state(ship_id)) for ship_id in state.ships
+        )
     weight = sum(placement.vehicle.weight for placement in state.inside_placements)
     return weight <= state.ship.max_capacity
 
 
-def is_valid_state(state: State) -> bool:
+def is_valid_state(state: SearchState) -> bool:
+    ids = [placement.vehicle.id for placement in state.placements]
+    if len(ids) != len(set(ids)):
+        return False
     return is_inside_boundary(state) and not has_overlap(state) and within_capacity(state)

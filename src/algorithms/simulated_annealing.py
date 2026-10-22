@@ -4,84 +4,13 @@ from time import perf_counter
 from typing import Any
 
 from src.core.constraints import is_valid_state
-from src.core.neighbor import move_vehicle, rotate_vehicle, swap_vehicles
+from src.core.neighbor import random_neighbor
 from src.core.objective import with_updated_metrics
-from src.models.state import Orientation, State
-
-
-def _random_move(
-    state: State,
-    generator: random.Random,
-    objective_mode: str,
-) -> State | None:
-    placement = generator.choice(state.placements)
-    orientation = generator.choice(list(Orientation))
-    placed_width = (
-        placement.vehicle.width
-        if orientation is Orientation.HORIZONTAL
-        else placement.vehicle.length
-    )
-    placed_length = (
-        placement.vehicle.length
-        if orientation is Orientation.HORIZONTAL
-        else placement.vehicle.width
-    )
-    if placed_width > state.ship.width or placed_length > state.ship.length:
-        return None
-    return move_vehicle(
-        state,
-        placement.vehicle.id,
-        generator.randrange(state.ship.width - placed_width + 1),
-        generator.randrange(state.ship.length - placed_length + 1),
-        orientation,
-        objective_mode,
-    )
-
-
-def _random_rotation(
-    state: State,
-    generator: random.Random,
-    objective_mode: str,
-) -> State | None:
-    if not state.inside_placements:
-        return None
-    placement = generator.choice(state.inside_placements)
-    return rotate_vehicle(state, placement.vehicle.id, objective_mode)
-
-
-def _random_swap(
-    state: State,
-    generator: random.Random,
-    objective_mode: str,
-) -> State | None:
-    if len(state.placements) < 2:
-        return None
-    first, second = generator.sample(state.placements, 2)
-    return swap_vehicles(
-        state,
-        first.vehicle.id,
-        second.vehicle.id,
-        objective_mode,
-    )
-
-
-def _random_neighbor(
-    state: State,
-    generator: random.Random,
-    objective_mode: str,
-    attempts: int,
-) -> State | None:
-    operations = (_random_move, _random_rotation, _random_swap)
-    for _ in range(attempts):
-        operation = generator.choice(operations)
-        candidate = operation(state, generator, objective_mode)
-        if candidate is not None:
-            return candidate
-    return None
+from src.models.fleet_state import SearchState
 
 
 def simulated_annealing(
-    state: State,
+    state: SearchState,
     initial_temperature: float = 100.0,
     cooling_rate: float = 0.995,
     minimum_temperature: float = 0.01,
@@ -123,7 +52,7 @@ def simulated_annealing(
 
     iteration = 0
     while iteration < max_iterations and temperature > minimum_temperature:
-        candidate = _random_neighbor(
+        candidate = random_neighbor(
             current,
             generator,
             objective_mode,

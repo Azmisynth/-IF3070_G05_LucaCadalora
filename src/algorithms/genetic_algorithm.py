@@ -3,37 +3,38 @@ from time import perf_counter
 from typing import Any
 
 from src.core.constraints import is_valid_state
-from src.core.initialization import generate_random_state
-from src.core.neighbor import move_vehicle, rotate_vehicle, swap_vehicles
+from src.core.initialization import create_outside_state, generate_random_state, place_randomly
+from src.core.neighbor import random_neighbor
 from src.core.objective import with_updated_metrics
-from src.models.state import Orientation, Placement, State
+from src.models.state import Placement
+from src.models.fleet_state import FleetState, SearchState, ship_configuration
 
 
 def _build_valid_child(
-    parent: State,
+    parent: SearchState,
     genes: list[Placement],
     objective_mode: str,
-) -> State:
-    child = State(
-        ship=parent.ship,
-        placements=[Placement.outside(placement.vehicle) for placement in genes],
-    )
+    generator: random.Random,
+) -> SearchState:
+    child = create_outside_state(ship_configuration(parent), parent.vehicles, objective_mode)
     for index, gene in enumerate(genes):
         if not gene.inside:
             continue
         candidate = child.replace_placement(index, gene)
         if is_valid_state(candidate):
             child = candidate
+        elif isinstance(child, FleetState):
+            child = place_randomly(child, index, generator, objective_mode, max_attempts=20)
     return with_updated_metrics(child, objective_mode)
 
 
 def _crossover(
-    first: State,
-    second: State,
+    first: SearchState,
+    second: SearchState,
     generator: random.Random,
     crossover_rate: float,
     objective_mode: str,
-) -> tuple[State, State]:
+) -> tuple[SearchState, SearchState]:
     if len(first.placements) < 2 or generator.random() >= crossover_rate:
         return (
             with_updated_metrics(first, objective_mode),
@@ -43,96 +44,35 @@ def _crossover(
     first_genes = first.placements[:point] + second.placements[point:]
     second_genes = second.placements[:point] + first.placements[point:]
     return (
-        _build_valid_child(first, first_genes, objective_mode),
-        _build_valid_child(second, second_genes, objective_mode),
-    )
-
-
-def _mutation_move(
-    state: State,
-    generator: random.Random,
-    objective_mode: str,
-) -> State | None:
-    placement = generator.choice(state.placements)
-    orientation = generator.choice(list(Orientation))
-    placed_width = (
-        placement.vehicle.width
-        if orientation is Orientation.HORIZONTAL
-        else placement.vehicle.length
-    )
-    placed_length = (
-        placement.vehicle.length
-        if orientation is Orientation.HORIZONTAL
-        else placement.vehicle.width
-    )
-    if placed_width > state.ship.width or placed_length > state.ship.length:
-        return None
-    return move_vehicle(
-        state,
-        placement.vehicle.id,
-        generator.randrange(state.ship.width - placed_width + 1),
-        generator.randrange(state.ship.length - placed_length + 1),
-        orientation,
-        objective_mode,
-    )
-
-
-def _mutation_rotation(
-    state: State,
-    generator: random.Random,
-    objective_mode: str,
-) -> State | None:
-    if not state.inside_placements:
-        return None
-    placement = generator.choice(state.inside_placements)
-    return rotate_vehicle(state, placement.vehicle.id, objective_mode)
-
-
-def _mutation_swap(
-    state: State,
-    generator: random.Random,
-    objective_mode: str,
-) -> State | None:
-    if len(state.placements) < 2:
-        return None
-    first, second = generator.sample(state.placements, 2)
-    return swap_vehicles(
-        state,
-        first.vehicle.id,
-        second.vehicle.id,
-        objective_mode,
+        _build_valid_child(first, first_genes, objective_mode, generator),
+        _build_valid_child(second, second_genes, objective_mode, generator),
     )
 
 
 def _mutate(
-    state: State,
+    state: SearchState,
     generator: random.Random,
     mutation_rate: float,
     mutation_attempts: int,
     objective_mode: str,
-) -> State:
+) -> SearchState:
     if generator.random() >= mutation_rate:
         return state
-    operations = (_mutation_move, _mutation_rotation, _mutation_swap)
-    for _ in range(mutation_attempts):
-        operation = generator.choice(operations)
-        candidate = operation(state, generator, objective_mode)
-        if candidate is not None:
-            return candidate
-    return state
+    candidate = random_neighbor(state, generator, objective_mode, mutation_attempts)
+    return candidate if candidate is not None else state
 
 
 def _select_parent(
-    population: list[State],
+    population: list[SearchState],
     tournament_size: int,
     generator: random.Random,
-) -> State:
+) -> SearchState:
     candidates = generator.sample(population, tournament_size)
     return max(candidates, key=lambda state: state.objective_value)
 
 
 def _generation_summary(
-    population: list[State],
+    population: list[SearchState],
     generation: int,
 ) -> dict[str, float | int]:
     fitness_values = [state.objective_value for state in population]
@@ -145,7 +85,7 @@ def _generation_summary(
 
 
 def genetic_algorithm(
-    state: State,
+    state: SearchState,
     population_size: int = 30,
     generations: int = 100,
     crossover_rate: float = 0.8,
@@ -177,7 +117,7 @@ def genetic_algorithm(
     for _ in range(population_size - 1):
         population.append(
             generate_random_state(
-                state.ship,
+                ship_configuration(state),
                 state.vehicles,
                 objective_mode=objective_mode,
                 rng=generator,
